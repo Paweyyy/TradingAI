@@ -20,11 +20,14 @@ snapshot (code) -> strategy rules (code) -> Claude confirm/veto -> Risk Layer ->
 | Indicators (EMA/RSI/ATR/MACD/vol-z) | ✅ done + tested |
 | Strategy rules (HTF trend-following) | ✅ done + tested |
 | Risk Layer (caps, sizing, kill switch) | ✅ done + tested |
+| Backtester (fees, ATR stop, scale-out, trail, metrics) | ✅ done + tested |
 | Bybit MCP wiring + permission hook | ✅ scaffolded |
 | Live agent tick (Claude + orders) | 🚧 Phase 3 |
 | Scheduler / autonomous loop | 🚧 Phase 4 |
 
-See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **32 tests pass** for the deterministic core (no network/keys needed).
+See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **38 tests pass** for the deterministic core (no network/keys needed).
+
+> The **backtest measures the deterministic strategy only**. In live trading Claude adds a *veto* on top (it can pass on a valid setup but never invents one), so live entries are a conservative subset of backtest entries.
 
 ## Quickstart
 
@@ -37,6 +40,10 @@ cp .env.example .env             # then fill in TESTNET keys; keep BYBIT_TESTNET
 BYBIT_TESTNET=true tradingai check     # validate config + environment
 tradingai status                       # print state report
 tradingai tick                         # (Phase 3) one live testnet decision tick
+
+# Evaluate the strategy on historical 1h klines before risking anything:
+tradingai backtest --data klines.csv --equity 1000
+# CSV format: start,open,high,low,close,volume[,turnover] (Bybit V5 kline order)
 ```
 
 ## Configuration

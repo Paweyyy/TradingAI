@@ -57,13 +57,33 @@ def cmd_tick(cfg: Config) -> int:
     return 0
 
 
+def cmd_backtest(cfg: Config, args) -> int:
+    import json
+
+    from .backtest import Backtester, load_klines_csv
+
+    if not args.data:
+        print("Provide historical 1h klines CSV via --data path.csv")
+        print("Format: start,open,high,low,close,volume[,turnover] (Bybit V5 kline order)")
+        return 2
+    klines = load_klines_csv(args.data)
+    bt = Backtester(cfg, initial_equity=args.equity)
+    result = bt.run(klines)
+    print(json.dumps(result.summary(), indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tradingai", description="Claude-driven Bybit trading bot (testnet-first)")
-    parser.add_argument("command", choices=["check", "status", "tick"], help="action to run")
+    parser.add_argument("command", choices=["check", "status", "tick", "backtest"], help="action to run")
     parser.add_argument("--config", default=None, help="path to config.yaml")
+    parser.add_argument("--data", default=None, help="klines CSV for backtest")
+    parser.add_argument("--equity", type=float, default=1000.0, help="starting equity for backtest")
     args = parser.parse_args(argv)
 
     cfg = load_config(args.config)
+    if args.command == "backtest":
+        return cmd_backtest(cfg, args)
     return {"check": cmd_check, "status": cmd_status, "tick": cmd_tick}[args.command](cfg)
 
 
