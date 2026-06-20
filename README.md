@@ -21,11 +21,13 @@ snapshot (code) -> strategy rules (code) -> Claude confirm/veto -> Risk Layer ->
 | Strategy rules (HTF trend-following) | ✅ done + tested |
 | Risk Layer (caps, sizing, kill switch) | ✅ done + tested |
 | Backtester (fees, ATR stop, scale-out, trail, metrics) | ✅ done + tested |
-| Bybit MCP wiring + permission hook | ✅ scaffolded |
-| Live agent tick (Claude + orders) | 🚧 Phase 3 |
+| Bybit V5 data client (klines/ticker + signed account) | ✅ done + tested |
+| Live snapshot builder + `snapshot` / `tick` commands | ✅ done |
+| Bybit MCP wiring + permission hook | ✅ done |
+| Live agent tick (Claude decides, orders via MCP) | ✅ wired (run locally w/ keys) |
 | Scheduler / autonomous loop | 🚧 Phase 4 |
 
-See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **38 tests pass** for the deterministic core (no network/keys needed).
+See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **48 tests pass** for the deterministic core (no network/keys needed).
 
 > The **backtest measures the deterministic strategy only**. In live trading Claude adds a *veto* on top (it can pass on a valid setup but never invents one), so live entries are a conservative subset of backtest entries.
 
@@ -39,7 +41,12 @@ pytest -q                        # run the test suite
 cp .env.example .env             # then fill in TESTNET keys; keep BYBIT_TESTNET=true
 BYBIT_TESTNET=true tradingai check     # validate config + environment
 tradingai status                       # print state report
-tradingai tick                         # (Phase 3) one live testnet decision tick
+
+# Validate the live data path (keyless market data, no SDK needed):
+BYBIT_TESTNET=true tradingai snapshot  # fetch testnet data -> print snapshot + rule eval
+
+# One full decision tick (needs '.[agent]' SDK + testnet keys + network):
+BYBIT_TESTNET=true tradingai tick      # Claude decides; orders via MCP, gated by Risk Layer
 
 # Evaluate the strategy on historical 1h klines before risking anything:
 tradingai backtest --data klines.csv --equity 1000
