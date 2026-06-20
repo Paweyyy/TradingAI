@@ -12,6 +12,7 @@ market:
   trend_timeframe: "240"   # 4h (Bybit kline interval, minutes)
   entry_timeframe: "60"    # 1h
   klines_limit: 250        # enough history for EMA200
+  qty_decimals: 3          # order qty rounding (BTCUSDT perp step is 0.001)
 
 strategy:
   name: htf_trend_following

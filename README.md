@@ -2,7 +2,7 @@
 
 Claude-driven automated crypto trading bot on **Bybit**, via the official Bybit **MCP** server and the **Claude Agent SDK**. **Testnet-first** — v1 refuses to trade real funds.
 
-> Design docs: **[PLAN.md](./PLAN.md)** (architecture & safety) · **[SIGNALS.md](./SIGNALS.md)** (data & signals) · **[STRATEGY.md](./STRATEGY.md)** (the trading strategy).
+> Docs: **[RUNBOOK.md](./RUNBOOK.md)** (how to run it on testnet) · **[PLAN.md](./PLAN.md)** (architecture & safety) · **[SIGNALS.md](./SIGNALS.md)** (data & signals) · **[STRATEGY.md](./STRATEGY.md)** (the trading strategy).
 
 ## What it does
 
@@ -28,7 +28,9 @@ snapshot (code) -> strategy rules (code) -> Claude confirm/veto -> Risk Layer ->
 | Scheduler / autonomous loop (`run`) | ✅ done + tested |
 | Performance evaluation / `report` (shared metrics, go-live gate) | ✅ done + tested |
 
-See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **66 tests pass** for the deterministic core (no network/keys needed). Phases 0–5 complete; the bot is functionally ready for testnet validation.
+See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **78 tests pass** for the deterministic core (no network/keys needed). Phases 0–5 complete; the bot is functionally ready for testnet validation.
+
+**Sizing is deterministic:** the Risk Layer computes the exact order (side + qty + stop + take-profit) and hands Claude a *pre-sized plan*. Claude confirms or vetoes the trade but cannot change the size; the permission hook rejects any order that deviates from the plan, and any opening order when there's no valid setup.
 
 > The **backtest measures the deterministic strategy only**. In live trading Claude adds a *veto* on top (it can pass on a valid setup but never invents one), so live entries are a conservative subset of backtest entries.
 

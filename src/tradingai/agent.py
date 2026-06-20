@@ -15,6 +15,7 @@ from .config import Config
 from .features import MarketSnapshot
 from .mcp_bybit import bybit_mcp_servers
 from .permissions import make_permission_hook
+from .planning import OrderPlan
 from .risk import AccountState, RiskManager
 from .strategy import TradeSetup
 
@@ -24,16 +25,25 @@ def load_strategy_prompt(cfg: Config) -> str:
     return path.read_text() if path.exists() else "You are a cautious trend-following trading assistant."
 
 
-def build_tick_prompt(snapshot: MarketSnapshot, setup: TradeSetup) -> str:
+def build_tick_prompt(snapshot: MarketSnapshot, setup: TradeSetup,
+                      plan: OrderPlan | None = None) -> str:
     """Compose the user prompt for one decision tick."""
+    plan_block = (
+        "Pre-sized order plan (use EXACTLY these values if you open; the Risk "
+        f"Layer enforces them):\n{json.dumps(plan.as_dict(), indent=2)}\n\n"
+        if plan is not None else
+        "No valid setup this tick: do not open a position (HOLD or manage an "
+        "existing one only).\n\n"
+    )
     return (
         "Market snapshot (indicators already computed — do not recompute):\n"
         f"{json.dumps(snapshot.as_dict(), indent=2)}\n\n"
         "Deterministic rule evaluation:\n"
         f"{json.dumps(setup.as_dict(), indent=2)}\n\n"
+        f"{plan_block}"
         "Decide one of HOLD / OPEN_LONG / OPEN_SHORT / CLOSE / ADJUST. "
-        "If you open, you may call the Bybit order tools; the Risk Layer will size "
-        "and authorize. Give a 1-3 sentence rationale citing snapshot fields. "
+        "You do NOT choose size — if you open, submit the planned side and qty "
+        "exactly. Give a 1-3 sentence rationale citing snapshot fields. "
         "When in doubt, HOLD."
     )
 
@@ -42,6 +52,7 @@ def build_agent_options(
     cfg: Config,
     risk: RiskManager,
     account_provider: Callable[[], AccountState],
+    plan_provider: Callable[[], OrderPlan | None] | None = None,
 ):
     """Construct ClaudeAgentOptions. Raises if the SDK is not installed."""
     try:
@@ -52,7 +63,7 @@ def build_agent_options(
         ) from exc
 
     symbol_default = cfg.market.symbols[0]
-    hook = make_permission_hook(risk, account_provider, symbol_default)
+    hook = make_permission_hook(risk, account_provider, symbol_default, plan_provider)
     return ClaudeAgentOptions(
         model=cfg.runtime.model,
         system_prompt=load_strategy_prompt(cfg),
@@ -67,12 +78,13 @@ async def run_tick(
     account_provider: Callable[[], AccountState],
     snapshot: MarketSnapshot,
     setup: TradeSetup,
+    plan: OrderPlan | None = None,
 ) -> str:
     """Run one Claude decision tick. Returns the textual rationale/result."""
     from claude_agent_sdk import query  # type: ignore
 
-    options = build_agent_options(cfg, risk, account_provider)
-    prompt = build_tick_prompt(snapshot, setup)
+    options = build_agent_options(cfg, risk, account_provider, plan_provider=lambda: plan)
+    prompt = build_tick_prompt(snapshot, setup, plan)
     chunks: list[str] = []
     async for message in query(prompt=prompt, options=options):
         text = getattr(message, "text", None) or getattr(message, "content", None)

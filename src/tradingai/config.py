@@ -24,6 +24,7 @@ class MarketConfig(BaseModel):
     trend_timeframe: str = "240"
     entry_timeframe: str = "60"
     klines_limit: int = 250
+    qty_decimals: int = 3  # order qty rounding (BTC perp step is 0.001)
 
 
 class StrategyConfig(BaseModel):

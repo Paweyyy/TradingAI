@@ -15,6 +15,7 @@ from .agent import run_tick
 from .config import Config
 from .logging_setup import log_event, setup_logging
 from .market_data import BybitClient
+from .planning import build_order_plan
 from .risk import AccountState, RiskManager
 from .snapshot import build_account_state, build_snapshot
 from .state import StateStore
@@ -48,8 +49,10 @@ async def run_live_tick(cfg: Config) -> int:
             continue
 
         setup = evaluate(snap, cfg.strategy)
+        plan = build_order_plan(cfg, risk, setup, acct.equity, last_price)
         log_event(logger, "INFO", "tick evaluated", symbol=symbol,
-                  trend=snap.trend_tf.trend, setup_valid=setup.valid, reasons=setup.reasons)
+                  trend=snap.trend_tf.trend, setup_valid=setup.valid,
+                  planned_qty=(plan.qty if plan else None), reasons=setup.reasons)
 
         # A mutable account holder so the permission hook re-reads current state
         # (including orders_this_tick) at order time.
@@ -59,10 +62,11 @@ async def run_live_tick(cfg: Config) -> int:
             return holder["acct"]
 
         if cfg.mode.dry_run:
-            _record(state, symbol, "DRY_RUN", "; ".join(setup.reasons))
+            detail = f"plan={plan.as_dict()}" if plan else "; ".join(setup.reasons)
+            _record(state, symbol, "DRY_RUN", detail)
             continue
 
-        rationale = await run_tick(cfg, risk, account_provider, snap, setup)
+        rationale = await run_tick(cfg, risk, account_provider, snap, setup, plan)
         log_event(logger, "INFO", "claude decision", symbol=symbol, rationale=rationale[:500])
         _record(state, symbol, "DECIDED", rationale[:300])
 
