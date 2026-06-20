@@ -1,0 +1,54 @@
+# TradingAI configuration (v1 defaults). See STRATEGY.md for rationale.
+# All values here are tunable; nothing strategy-related is hardcoded in source.
+
+mode:
+  testnet: true            # v1 hard requirement; runner asserts this
+  dry_run: false           # if true, never submit orders even on testnet
+
+market:
+  category: linear         # USDT-margined perpetuals
+  symbols:                 # v1: BTC-only. Add ETHUSDT once stable.
+    - BTCUSDT
+  trend_timeframe: "240"   # 4h (Bybit kline interval, minutes)
+  entry_timeframe: "60"    # 1h
+  klines_limit: 250        # enough history for EMA200
+
+strategy:
+  name: htf_trend_following
+  prompt_file: config/strategies/default.md
+  # Indicator params
+  ema_fast: 50
+  ema_slow: 200
+  ema_entry: 20
+  rsi_period: 14
+  atr_period: 14
+  atr_stop_mult: 1.5
+  volume_ma_period: 20
+  # Entry style: pullback (v1) vs breakout
+  entry_style: pullback
+  # Guards
+  funding_extreme_abs: 0.0005   # |funding| above this blocks same-side entry (~0.05%/8h)
+  sentiment_guard: true
+  fng_extreme_greed: 85
+  fng_extreme_fear: 15
+
+risk:
+  risk_per_trade_pct: 1.0       # % of equity risked per trade
+  leverage_cap: 3               # hard ceiling (range 2-5 allowed)
+  max_positions: 1              # no pyramiding / averaging down in v1
+  daily_loss_limit_pct: 3.0     # halt new entries for the day past this
+  max_drawdown_pause_pct: 15.0  # pause bot entirely past this peak-to-trough
+  max_orders_per_tick: 2
+  price_sanity_pct: 5.0         # reject orders > this % from last price
+
+execution:
+  prefer_maker: true            # limit orders to pay maker fees
+  tp1_r_multiple: 1.0           # take 50% off at +1R
+  tp1_size_pct: 50
+  trail: ema20_4h               # trail remainder; alt: atr_chandelier
+
+runtime:
+  cadence_minutes: 60           # evaluate each 1h close
+  model: claude-opus-4-8        # decision model; configurable
+  state_dir: state
+  log_level: INFO

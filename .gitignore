@@ -1,0 +1,23 @@
+# Secrets
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+build/
+dist/
+
+# Runtime state & logs
+state/
+*.log
+*.db
+*.sqlite
+
+# OS
+.DS_Store

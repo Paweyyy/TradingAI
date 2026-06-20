@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tradingai"
+version = "0.1.0"
+description = "Claude-driven automated crypto trading bot on Bybit (via MCP). Testnet-first."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# The Claude Agent SDK is only needed to actually run the live agent loop.
+# The deterministic core (indicators, strategy, risk) and its tests do not need it.
+agent = [
+    "claude-agent-sdk>=0.1.0",
+]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+tradingai = "tradingai.runner:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
