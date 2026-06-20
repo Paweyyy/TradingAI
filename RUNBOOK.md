@@ -115,5 +115,5 @@ tradingai report       # win rate, PnL, drawdown + the go-live gate verdict
 | `Could not reach Bybit ... 403` | Your network blocks Bybit egress; run from a machine with outbound access |
 | `claude-agent-sdk not installed` | `pip install -e '.[agent]'` |
 | `Scheduler needs BYBIT_API_KEY/SECRET` | Export your testnet keys (Step 3) |
-| Orders rejected with `RISK BLOCK` / `PLAN MISMATCH` in logs | The guard working as intended — the attempted order broke a limit or deviated from the sized plan |
+| `RISK BLOCK` / `PLAN MISMATCH` / `NO PLAN` in logs | The guard working as intended — a limit was breached, the direction was wrong, or there was no valid setup. Note: a wrongly-*sized* opening order is silently corrected to the planned size, not rejected |
 | `npx` errors launching the MCP server | Install Node.js; ensure `npx` is on PATH |

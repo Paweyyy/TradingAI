@@ -31,21 +31,34 @@ def test_allows_read_tools():
     assert res["behavior"] == "allow"
 
 
-def test_allows_order_matching_plan():
+def test_allows_order_matching_plan_and_injects_size():
     hook = _hook(_plan(qty=0.02, side="Buy"))
     res = hook("mcp__bybit__place_order",
                {"symbol": "BTCUSDT", "side": "Buy", "qty": "0.02", "price": "50000", "leverage": "3"})
     assert res["behavior"] == "allow"
+    # Size is force-injected so the executed order is exactly the planned one.
+    assert res["updatedInput"]["qty"] == "0.02"
+    assert res["updatedInput"]["side"] == "Buy"
 
 
-def test_denies_order_with_wrong_qty():
-    # 0.04 BTC @ 50000 = 2000 notional: passes the 3x risk cap (<3000) but is
-    # double the planned 0.02, so the plan check (not risk) must reject it.
+def test_wrong_qty_is_corrected_not_rejected():
+    # 0.04 BTC @ 50000 = 2000 notional: within the 3x risk cap, but double the
+    # planned 0.02. Instead of rejecting, the hook injects the planned size.
     hook = _hook(_plan(qty=0.02, side="Buy"))
     res = hook("mcp__bybit__place_order",
                {"symbol": "BTCUSDT", "side": "Buy", "qty": "0.04", "price": "50000", "leverage": "3"})
+    assert res["behavior"] == "allow"
+    assert res["updatedInput"]["qty"] == "0.02"  # corrected down to plan
+
+
+def test_dangerously_oversized_submission_is_denied():
+    # If the submitted order would itself breach risk (and a host ignored our
+    # size injection), it must be denied as a safety net. 1 BTC = 50000 >> 3x*1000.
+    hook = _hook(_plan(qty=0.02, side="Buy"))
+    res = hook("mcp__bybit__place_order",
+               {"symbol": "BTCUSDT", "side": "Buy", "qty": "1.0", "price": "50000", "leverage": "3"})
     assert res["behavior"] == "deny"
-    assert "PLAN MISMATCH" in res["message"]
+    assert "RISK BLOCK" in res["message"]
 
 
 def test_denies_order_with_wrong_side():

@@ -30,7 +30,7 @@ snapshot (code) -> strategy rules (code) -> Claude confirm/veto -> Risk Layer ->
 
 See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **78 tests pass** for the deterministic core (no network/keys needed). Phases 0–5 complete; the bot is functionally ready for testnet validation.
 
-**Sizing is deterministic:** the Risk Layer computes the exact order (side + qty + stop + take-profit) and hands Claude a *pre-sized plan*. Claude confirms or vetoes the trade but cannot change the size; the permission hook rejects any order that deviates from the plan, and any opening order when there's no valid setup.
+**Sizing is deterministic and force-injected:** the Risk Layer computes the exact order (side + qty + stop + take-profit) and hands Claude a *pre-sized plan*. Claude confirms or vetoes the trade but cannot change the size — for opening orders the permission hook **overwrites** the submitted side/qty/leverage with the plan (via `updatedInput`), so a slightly-off order is corrected rather than rejected (no lost fills). Opposite-direction orders, opening orders with no valid setup, and any submission that would itself breach risk are still denied outright.
 
 > The **backtest measures the deterministic strategy only**. In live trading Claude adds a *veto* on top (it can pass on a valid setup but never invents one), so live entries are a conservative subset of backtest entries.
 
