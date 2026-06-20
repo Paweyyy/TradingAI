@@ -85,6 +85,16 @@ def base_url_hint(testnet: bool) -> str:
     return base_url(testnet)
 
 
+def cmd_run(cfg: Config) -> int:
+    """Run the autonomous scheduler loop (testnet-only)."""
+    _assert_testnet(cfg)
+    if not os.environ.get("BYBIT_API_KEY"):
+        raise SystemExit("Scheduler needs BYBIT_API_KEY/SECRET (testnet) for account state and orders.")
+    from .scheduler import run_forever
+
+    return run_forever(cfg)
+
+
 def cmd_tick(cfg: Config) -> int:
     import asyncio
 
@@ -116,7 +126,7 @@ def cmd_backtest(cfg: Config, args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tradingai", description="Claude-driven Bybit trading bot (testnet-first)")
-    parser.add_argument("command", choices=["check", "status", "snapshot", "tick", "backtest"], help="action to run")
+    parser.add_argument("command", choices=["check", "status", "snapshot", "tick", "run", "backtest"], help="action to run")
     parser.add_argument("--config", default=None, help="path to config.yaml")
     parser.add_argument("--data", default=None, help="klines CSV for backtest")
     parser.add_argument("--equity", type=float, default=1000.0, help="starting equity for backtest")
@@ -130,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
         "status": cmd_status,
         "snapshot": cmd_snapshot,
         "tick": cmd_tick,
+        "run": cmd_run,
     }[args.command](cfg)
 
 

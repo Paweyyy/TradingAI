@@ -25,9 +25,10 @@ snapshot (code) -> strategy rules (code) -> Claude confirm/veto -> Risk Layer ->
 | Live snapshot builder + `snapshot` / `tick` commands | ✅ done |
 | Bybit MCP wiring + permission hook | ✅ done |
 | Live agent tick (Claude decides, orders via MCP) | ✅ wired (run locally w/ keys) |
-| Scheduler / autonomous loop | 🚧 Phase 4 |
+| Scheduler / autonomous loop (`run`) | ✅ done + tested |
+| Reporting / evaluation from decision log | 🚧 Phase 5 |
 
-See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **48 tests pass** for the deterministic core (no network/keys needed).
+See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **55 tests pass** for the deterministic core (no network/keys needed).
 
 > The **backtest measures the deterministic strategy only**. In live trading Claude adds a *veto* on top (it can pass on a valid setup but never invents one), so live entries are a conservative subset of backtest entries.
 
@@ -47,6 +48,9 @@ BYBIT_TESTNET=true tradingai snapshot  # fetch testnet data -> print snapshot + 
 
 # One full decision tick (needs '.[agent]' SDK + testnet keys + network):
 BYBIT_TESTNET=true tradingai tick      # Claude decides; orders via MCP, gated by Risk Layer
+
+# Run unattended on the configured cadence (Ctrl-C to stop gracefully):
+BYBIT_TESTNET=true tradingai run       # autonomous loop: tick every cadence_minutes
 
 # Evaluate the strategy on historical 1h klines before risking anything:
 tradingai backtest --data klines.csv --equity 1000
