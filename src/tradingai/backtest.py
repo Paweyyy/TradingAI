@@ -52,16 +52,13 @@ class BacktestResult:
 
     @property
     def win_rate(self) -> float:
-        if not self.trades:
-            return 0.0
-        wins = sum(1 for t in self.trades if t.pnl > 0)
-        return wins / len(self.trades) * 100
+        from . import metrics
+        return metrics.win_rate(self.trades)
 
     @property
     def avg_r(self) -> float:
-        if not self.trades:
-            return 0.0
-        return sum(t.r_multiple for t in self.trades) / len(self.trades)
+        from . import metrics
+        return metrics.avg_r(self.trades) or 0.0
 
     @property
     def expectancy_r(self) -> float:
@@ -70,13 +67,8 @@ class BacktestResult:
 
     @property
     def max_drawdown_pct(self) -> float:
-        peak = self.initial_equity
-        max_dd = 0.0
-        for eq in self.equity_curve:
-            peak = max(peak, eq)
-            if peak > 0:
-                max_dd = min(max_dd, (eq - peak) / peak * 100)
-        return max_dd
+        from . import metrics
+        return metrics.max_drawdown_pct(self.equity_curve)
 
     def summary(self) -> dict:
         return {

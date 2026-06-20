@@ -64,6 +64,23 @@ def parse_wallet_equity(result: dict) -> float | None:
     return _f(rows[0].get("totalEquity"))
 
 
+def parse_closed_pnl(result: dict) -> list[dict]:
+    """Realized trades from /v5/position/closed-pnl (newest-first -> oldest-first)."""
+    out = []
+    for r in result.get("list", []):
+        out.append({
+            "symbol": r.get("symbol"),
+            "side": r.get("side"),
+            "qty": _f(r.get("qty")),
+            "avg_entry": _f(r.get("avgEntryPrice")),
+            "avg_exit": _f(r.get("avgExitPrice")),
+            "closed_pnl": _f(r.get("closedPnl")) or 0.0,
+            "created_time": r.get("createdTime"),
+        })
+    out.reverse()
+    return out
+
+
 def parse_positions(result: dict) -> list[dict]:
     out = []
     for p in result.get("list", []):
@@ -142,6 +159,11 @@ class BybitClient:
     def positions(self, category: str, symbol: str) -> list[dict]:
         result = self._get("/v5/position/list", {"category": category, "symbol": symbol}, signed=True)
         return parse_positions(result)
+
+    def closed_pnl(self, category: str, symbol: str, limit: int = 100) -> list[dict]:
+        result = self._get("/v5/position/closed-pnl",
+                           {"category": category, "symbol": symbol, "limit": limit}, signed=True)
+        return parse_closed_pnl(result)
 
 
 def fetch_fear_greed(timeout: int = 10) -> tuple[int | None, str | None]:

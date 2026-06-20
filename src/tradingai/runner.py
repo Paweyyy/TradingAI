@@ -85,6 +85,36 @@ def base_url_hint(testnet: bool) -> str:
     return base_url(testnet)
 
 
+def cmd_report(cfg: Config) -> int:
+    """Evaluate realized testnet performance + bot activity."""
+    import urllib.error
+
+    from .evaluation import evaluate, format_report
+    from .market_data import BybitClient
+    from .state import StateStore
+
+    state = StateStore(cfg.runtime.state_dir)
+    decisions = state._data.get("decisions", [])  # noqa: SLF001
+    initial_equity = state.day_start_equity or state.peak_equity or 1000.0
+
+    closed: list[dict] = []
+    if os.environ.get("BYBIT_API_KEY"):
+        testnet = cfg.mode.testnet and os.environ.get("BYBIT_TESTNET", "").lower() == "true"
+        client = BybitClient(testnet=testnet,
+                             api_key=os.environ["BYBIT_API_KEY"],
+                             api_secret=os.environ.get("BYBIT_API_SECRET", ""))
+        try:
+            for symbol in cfg.market.symbols:
+                closed.extend(client.closed_pnl(cfg.market.category, symbol))
+        except (urllib.error.URLError, RuntimeError) as exc:
+            print(f"(could not fetch realized trades: {exc}; reporting from decision log only)")
+    else:
+        print("(no BYBIT_API_KEY; reporting activity from decision log only)")
+
+    print(format_report(evaluate(closed, decisions, initial_equity)))
+    return 0
+
+
 def cmd_run(cfg: Config) -> int:
     """Run the autonomous scheduler loop (testnet-only)."""
     _assert_testnet(cfg)
@@ -126,7 +156,9 @@ def cmd_backtest(cfg: Config, args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="tradingai", description="Claude-driven Bybit trading bot (testnet-first)")
-    parser.add_argument("command", choices=["check", "status", "snapshot", "tick", "run", "backtest"], help="action to run")
+    parser.add_argument("command",
+                        choices=["check", "status", "snapshot", "tick", "run", "backtest", "report"],
+                        help="action to run")
     parser.add_argument("--config", default=None, help="path to config.yaml")
     parser.add_argument("--data", default=None, help="klines CSV for backtest")
     parser.add_argument("--equity", type=float, default=1000.0, help="starting equity for backtest")
@@ -141,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
         "snapshot": cmd_snapshot,
         "tick": cmd_tick,
         "run": cmd_run,
+        "report": cmd_report,
     }[args.command](cfg)
 
 
