@@ -74,3 +74,9 @@ Everything strategy- and risk-related lives in **[config/config.yaml](./config/c
 - Secrets are gitignored; use a Bybit API key with no withdrawal rights and an IP allowlist.
 
 > ⚠️ Not financial advice. Leveraged crypto trading can lose money quickly. Validate on testnet before risking any real capital.
+
+## Analysis skill (interactive)
+
+A read-only **Claude skill** lives at `.claude/skills/trading-analysis/` — an on-demand front door to the same tested CLI. In any Claude Code / Claude session in this repo you can ask things like *"what's the current BTC setup?"*, *"summarize a backtest of this data"*, *"how's the bot doing / is it go-live ready?"*, or *"why did it hold?"* and Claude runs `snapshot` / `backtest` / `report` / `status` and narrates the result.
+
+It is **read-only by design** — it never starts the autonomous loop (`run`) or places orders; the engine and its Risk Layer stay in the scheduled service. To actually run the bot, follow [RUNBOOK.md](./RUNBOOK.md).
