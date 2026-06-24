@@ -72,16 +72,10 @@ def cmd_snapshot(cfg: Config) -> int:
             setup = evaluate(snap, cfg.strategy)
             print(json.dumps({"snapshot": snap.as_dict(), "setup": setup.as_dict()}, indent=2))
     except (urllib.error.URLError, RuntimeError) as exc:
-        print(f"Could not reach Kraken ({base_url_hint(demo)}): {exc}")
-        print("Run this from an environment with outbound access to Kraken Futures.")
+        print(f"Could not fetch Kraken market data: {exc}")
+        print("Market data uses the production host (futures.kraken.com); ensure outbound access.")
         return 1
     return 0
-
-
-def base_url_hint(demo: bool) -> str:
-    from .market_data import base_url
-
-    return base_url(demo)
 
 
 def cmd_report(cfg: Config) -> int:

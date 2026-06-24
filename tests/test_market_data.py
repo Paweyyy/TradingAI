@@ -10,6 +10,13 @@ def test_base_url_switch():
     assert md.base_url(False) == md.LIVE
 
 
+def test_market_data_always_uses_production_host():
+    # Demo host does not serve the public charts API; market data must use live.
+    c = md.KrakenClient(demo=True)
+    assert c.market_base == md.LIVE
+    assert c.account_base == md.DEMO  # signed calls still go to demo
+
+
 def test_sign_request_matches_reference():
     # Authent = base64(HMAC-SHA512(base64decode(secret), SHA256(post+nonce+endpoint)))
     secret_b64 = base64.b64encode(b"super-secret-key").decode()

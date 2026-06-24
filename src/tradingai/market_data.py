@@ -19,7 +19,9 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -132,8 +134,14 @@ def _f(v) -> float | None:
 
 # --- HTTP client ----------------------------------------------------------
 class KrakenClient:
-    def __init__(self, demo: bool, api_key: str = "", api_secret: str = "", timeout: int = 10) -> None:
-        self.base = base_url(demo)
+    def __init__(self, demo: bool, api_key: str = "", api_secret: str = "",
+                 timeout: int = 10, market_base: str | None = None) -> None:
+        # Signed account/order calls go to the demo (or live) host.
+        self.account_base = base_url(demo)
+        # Public market data (charts/tickers) is served by the production host;
+        # the demo host does not reliably serve it (returns 503). Demo prices
+        # mirror live anyway. Overridable via KRAKEN_MARKET_BASE.
+        self.market_base = market_base or os.environ.get("KRAKEN_MARKET_BASE", LIVE)
         self.api_key = api_key
         self.api_secret = api_secret
         self.timeout = timeout
@@ -143,9 +151,9 @@ class KrakenClient:
         self._nonce += 1
         return str(self._nonce)
 
-    def _get(self, path: str, params: dict | None = None, signed: bool = False) -> dict:
+    def _get(self, host: str, path: str, params: dict | None = None, signed: bool = False) -> dict:
         query = urllib.parse.urlencode(params or {})
-        url = f"{self.base}{path}?{query}" if query else f"{self.base}{path}"
+        url = f"{host}{path}?{query}" if query else f"{host}{path}"
         headers = {"Accept": "application/json"}
         if signed:
             if not (self.api_key and self.api_secret):
@@ -154,31 +162,37 @@ class KrakenClient:
             authent = sign_request(self.api_secret, _sign_endpoint(path), nonce, query)
             headers.update({"APIKey": self.api_key, "Nonce": nonce, "Authent": authent})
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # noqa: S310
-            body = json.loads(resp.read().decode())
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # noqa: S310
+                body = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as exc:  # surface status + which endpoint
+            raise RuntimeError(f"HTTP {exc.code} from {url}") from exc
         if isinstance(body, dict) and body.get("result") == "error":
-            raise RuntimeError(f"Kraken error: {body.get('error') or body.get('errors')}")
+            raise RuntimeError(f"Kraken error from {url}: {body.get('error') or body.get('errors')}")
         return body
 
-    # --- market data (keyless) ---
+    # --- market data (keyless, production host) ---
     def klines(self, symbol: str, resolution: str, tick_type: str = "trade") -> list[Kline]:
-        payload = self._get(f"/api/charts/v1/{tick_type}/{symbol}/{resolution}")
+        payload = self._get(self.market_base, f"/api/charts/v1/{tick_type}/{symbol}/{resolution}")
         return parse_candles(payload)
 
     def ticker(self, symbol: str) -> dict:
-        payload = self._get("/derivatives/api/v3/tickers")
+        payload = self._get(self.market_base, "/derivatives/api/v3/tickers")
         return parse_ticker(payload, symbol)
 
-    # --- account data (signed) ---
+    # --- account data (signed, account host) ---
     def equity(self) -> float | None:
-        return parse_accounts_equity(self._get("/derivatives/api/v3/accounts", signed=True))
+        return parse_accounts_equity(
+            self._get(self.account_base, "/derivatives/api/v3/accounts", signed=True))
 
     def positions(self, symbol: str | None = None) -> list[dict]:
-        positions = parse_openpositions(self._get("/derivatives/api/v3/openpositions", signed=True))
+        payload = self._get(self.account_base, "/derivatives/api/v3/openpositions", signed=True)
+        positions = parse_openpositions(payload)
         return [p for p in positions if symbol is None or p["symbol"] == symbol]
 
     def realized_pnl(self, symbol: str, limit: int = 100) -> list[dict]:
-        payload = self._get("/api/history/v3/account-log", {"count": limit}, signed=True)
+        payload = self._get(self.account_base, "/api/history/v3/account-log",
+                            {"count": limit}, signed=True)
         trades = parse_account_log_pnl(payload)
         return [t for t in trades if t["symbol"] == symbol]
 
