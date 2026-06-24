@@ -46,12 +46,19 @@ def test_parse_candles_is_chronological():
 def test_parse_ticker_finds_symbol():
     payload = {"tickers": [
         {"symbol": "PF_ETHUSD", "last": 3000, "fundingRate": 0.0, "openInterest": 1},
-        {"symbol": "PF_XBTUSD", "last": 50000, "fundingRate": 0.0001, "openInterest": 1234},
+        {"symbol": "PF_XBTUSD", "last": 50000, "fundingRate": 0.8,
+         "relativeFundingRate": 0.0001, "openInterest": 1234},
     ]}
     t = md.parse_ticker(payload, "PF_XBTUSD")
     assert t["last_price"] == 50000.0
+    # Prefers the relative funding rate, not the absolute one.
     assert t["funding_rate"] == 0.0001
     assert t["open_interest"] == 1234.0
+
+
+def test_parse_ticker_falls_back_to_absolute_funding():
+    payload = {"tickers": [{"symbol": "PF_XBTUSD", "last": 50000, "fundingRate": 0.0002}]}
+    assert md.parse_ticker(payload, "PF_XBTUSD")["funding_rate"] == 0.0002
 
 
 def test_parse_ticker_missing_symbol():

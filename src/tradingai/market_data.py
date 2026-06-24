@@ -73,9 +73,14 @@ def parse_candles(payload: dict) -> list[Kline]:
 def parse_ticker(payload: dict, symbol: str) -> dict:
     for t in payload.get("tickers", []) or []:
         if t.get("symbol", "").upper() == symbol.upper():
+            # Kraken's `fundingRate` is absolute; `relativeFundingRate` is the
+            # meaningful per-interval rate (~0.0001). Prefer the relative one.
+            funding = t.get("relativeFundingRate")
+            if funding is None:
+                funding = t.get("fundingRate")
             return {
                 "last_price": _f(t.get("last")) or _f(t.get("markPrice")),
-                "funding_rate": _f(t.get("fundingRate")),
+                "funding_rate": _f(funding),
                 "open_interest": _f(t.get("openInterest")),
             }
     return {}
