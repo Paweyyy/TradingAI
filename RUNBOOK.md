@@ -116,7 +116,8 @@ tradingai report       # win rate, PnL, drawdown + the go-live gate verdict
 | Symptom | Likely cause / fix |
 |---|---|
 | `REFUSING TO RUN: v1 is demo-only` | Set `KRAKEN_DEMO=true` **and** `mode.demo: true` |
-| `Could not reach Kraken ... 403` | Your network blocks Kraken egress; run from a machine with outbound access |
+| `Could not fetch Kraken market data ... 403` | Your network blocks Kraken egress; run from a machine with outbound access |
+| `HTTP 503` from `demo-futures.kraken.com` for market data | Expected — the demo host doesn't serve the public charts API. The bot now reads market data from the production host (`futures.kraken.com`); pull the latest. Override with `KRAKEN_MARKET_BASE` if needed |
 | `claude-agent-sdk not installed` | `pip install -e '.[agent]'` |
 | `Scheduler needs KRAKEN_API_KEY/SECRET` | Export your demo keys (Step 3) |
 | Orders rejected with `RISK BLOCK` / `PLAN MISMATCH` / `NO PLAN` in logs | The guard working as intended — limit breached, wrong direction, or no valid setup. A wrongly-*sized* opening order is corrected to the planned size, not rejected |
