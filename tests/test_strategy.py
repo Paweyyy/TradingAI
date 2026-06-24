@@ -12,7 +12,7 @@ def _tf(trend, rsi=55, macd=1.0, vol_z=0.5, ema_entry=100.0, atr=50.0, close=101
 
 def _snap(trend="up", **entry_kw):
     return MarketSnapshot(
-        symbol="BTCUSDT",
+        symbol="PF_XBTUSD",
         trend_tf=_tf(trend),
         entry_tf=_tf(trend, **entry_kw),
         funding_rate=0.0001,

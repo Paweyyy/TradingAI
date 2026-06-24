@@ -100,9 +100,9 @@ class RiskManager:
         reasons: list[str] = []
         r = self.cfg.risk
 
-        # Hard network guard: v1 must be testnet.
-        if not self.cfg.mode.testnet:
-            return GuardResult(False, ["BLOCKED: not testnet (v1 forbids mainnet)"])
+        # Hard network guard: v1 must use the demo environment.
+        if not self.cfg.mode.demo:
+            return GuardResult(False, ["BLOCKED: not demo (v1 forbids live trading)"])
 
         if self._kill_switch:
             return GuardResult(False, ["BLOCKED: kill switch active"])

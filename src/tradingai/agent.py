@@ -1,6 +1,6 @@
 """Claude Agent SDK integration.
 
-Builds the agent options (Bybit MCP server + permission hook + strategy prompt)
+Builds the agent options (Kraken MCP server + permission hook + strategy prompt)
 and runs a single decision tick. The SDK import is guarded so the deterministic
 core and its tests do not require the SDK to be installed.
 """
@@ -13,7 +13,7 @@ from typing import Callable
 
 from .config import Config
 from .features import MarketSnapshot
-from .mcp_bybit import bybit_mcp_servers
+from .mcp_kraken import kraken_mcp_servers
 from .permissions import make_permission_hook
 from .planning import OrderPlan
 from .risk import AccountState, RiskManager
@@ -67,7 +67,7 @@ def build_agent_options(
     return ClaudeAgentOptions(
         model=cfg.runtime.model,
         system_prompt=load_strategy_prompt(cfg),
-        mcp_servers=bybit_mcp_servers(cfg.mode.testnet),
+        mcp_servers=kraken_mcp_servers(cfg.mode.demo),
         can_use_tool=hook,
     )
 

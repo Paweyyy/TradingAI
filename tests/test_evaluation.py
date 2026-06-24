@@ -2,15 +2,12 @@ from tradingai import evaluation
 from tradingai import market_data as md
 
 
-def test_parse_closed_pnl_chronological():
-    result = {"list": [
-        {"symbol": "BTCUSDT", "side": "Sell", "qty": "0.01", "avgEntryPrice": "100",
-         "avgExitPrice": "110", "closedPnl": "0.1", "createdTime": "2"},
-        {"symbol": "BTCUSDT", "side": "Sell", "qty": "0.01", "avgEntryPrice": "100",
-         "avgExitPrice": "90", "closedPnl": "-0.1", "createdTime": "1"},
+def test_parse_account_log_pnl_chronological():
+    payload = {"logs": [
+        {"contract": "PF_XBTUSD", "realized_pnl": "0.1", "date": "2", "info": "sell"},
+        {"contract": "PF_XBTUSD", "realized_pnl": "-0.1", "date": "1", "info": "sell"},
     ]}
-    trades = md.parse_closed_pnl(result)
-    # reversed to oldest-first
+    trades = md.parse_account_log_pnl(payload)
     assert [t["created_time"] for t in trades] == ["1", "2"]
     assert trades[0]["closed_pnl"] == -0.1
 
@@ -27,8 +24,8 @@ def test_summarize_decisions():
 
 def test_evaluate_report_structure():
     closed = [
-        {"symbol": "BTCUSDT", "side": "Buy", "closed_pnl": 12.0},
-        {"symbol": "BTCUSDT", "side": "Buy", "closed_pnl": -4.0},
+        {"symbol": "PF_XBTUSD", "side": "Buy", "closed_pnl": 12.0},
+        {"symbol": "PF_XBTUSD", "side": "Buy", "closed_pnl": -4.0},
     ]
     decisions = [{"action": "DECIDED"}]
     report = evaluation.evaluate(closed, decisions, initial_equity=1000.0)

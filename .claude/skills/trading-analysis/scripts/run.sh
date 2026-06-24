@@ -13,8 +13,8 @@ if [ -f .venv/bin/activate ]; then
   source .venv/bin/activate
 fi
 
-# Default to testnet; never silently touch mainnet from analysis.
-export BYBIT_TESTNET="${BYBIT_TESTNET:-true}"
+# Default to demo; never silently touch live from analysis.
+export KRAKEN_DEMO="${KRAKEN_DEMO:-true}"
 # Allow running without an editable install.
 export PYTHONPATH="${ROOT}/src:${PYTHONPATH:-}"
 

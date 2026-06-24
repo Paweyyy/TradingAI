@@ -1,97 +1,118 @@
-"""Bybit V5 REST client (stdlib only).
+"""Kraken Futures REST client (stdlib only).
 
 Provides the deterministic market data used to build the snapshot, plus signed
-account/position reads for the Risk Layer's AccountState. Market-data endpoints
-need no API key; account endpoints are HMAC-signed.
+account/position/realized-PnL reads for the Risk Layer and evaluation. Market
+data (charts, tickers) needs no key; account endpoints use Kraken's ``Authent``
+signing.
 
-Parsing and signing are factored into pure functions so they can be unit-tested
-without network access.
+Parsing and signing are pure functions, unit-tested without network access.
+
+Kraken specifics:
+- Perpetual symbols look like ``PF_XBTUSD`` (note: BTC is ``XBT`` on Kraken).
+- Resolutions are strings: 1m, 5m, 15m, 30m, 1h, 4h, 12h, 1d, 1w.
+- Demo/test environment: demo-futures.kraken.com (full sandbox).
 """
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
 import time
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
 
 from .features import Kline
 
-MAINNET = "https://api.bybit.com"
-TESTNET = "https://api-testnet.bybit.com"
+LIVE = "https://futures.kraken.com"
+DEMO = "https://demo-futures.kraken.com"
 FNG_URL = "https://api.alternative.me/fng/?limit=1&format=json"
 
 
-def base_url(testnet: bool) -> str:
-    return TESTNET if testnet else MAINNET
+def base_url(demo: bool) -> str:
+    return DEMO if demo else LIVE
 
 
 # --- pure helpers (unit-tested) ------------------------------------------
-def sign_request(secret: str, api_key: str, timestamp: str, recv_window: str, query: str) -> str:
-    """Bybit V5 signature: HMAC_SHA256(secret, ts + api_key + recv_window + query)."""
-    payload = f"{timestamp}{api_key}{recv_window}{query}"
-    return hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+def sign_request(api_secret_b64: str, endpoint: str, nonce: str, post_data: str = "") -> str:
+    """Kraken Futures ``Authent``:
+
+    base64( HMAC-SHA512( base64decode(secret), SHA256(post_data + nonce + endpoint) ) )
+
+    ``endpoint`` is the request path with any leading ``/derivatives`` removed.
+    """
+    sha = hashlib.sha256((post_data + nonce + endpoint).encode()).digest()
+    mac = hmac.new(base64.b64decode(api_secret_b64), sha, hashlib.sha512).digest()
+    return base64.b64encode(mac).decode()
 
 
-def parse_klines(result: dict) -> list[Kline]:
-    """Bybit returns klines newest-first; we return them oldest-first."""
-    rows = result.get("list", [])
-    klines = [Kline.from_bybit(r) for r in rows]
-    klines.reverse()
+def _sign_endpoint(path: str) -> str:
+    prefix = "/derivatives"
+    return path[len(prefix):] if path.startswith(prefix) else path
+
+
+def parse_candles(payload: dict) -> list[Kline]:
+    """Charts API candles -> oldest-first Klines."""
+    rows = payload.get("candles", []) or []
+    klines = [
+        Kline(
+            open=_f(c.get("open")) or 0.0,
+            high=_f(c.get("high")) or 0.0,
+            low=_f(c.get("low")) or 0.0,
+            close=_f(c.get("close")) or 0.0,
+            volume=_f(c.get("volume")) or 0.0,
+        )
+        for c in sorted(rows, key=lambda c: c.get("time", 0))
+    ]
     return klines
 
 
-def parse_ticker(result: dict) -> dict:
-    rows = result.get("list", [])
-    if not rows:
-        return {}
-    t = rows[0]
-    return {
-        "last_price": _f(t.get("lastPrice")),
-        "funding_rate": _f(t.get("fundingRate")),
-        "open_interest": _f(t.get("openInterest")),
-    }
+def parse_ticker(payload: dict, symbol: str) -> dict:
+    for t in payload.get("tickers", []) or []:
+        if t.get("symbol", "").upper() == symbol.upper():
+            return {
+                "last_price": _f(t.get("last")) or _f(t.get("markPrice")),
+                "funding_rate": _f(t.get("fundingRate")),
+                "open_interest": _f(t.get("openInterest")),
+            }
+    return {}
 
 
-def parse_wallet_equity(result: dict) -> float | None:
-    """Total equity from a UNIFIED wallet-balance response."""
-    rows = result.get("list", [])
-    if not rows:
-        return None
-    return _f(rows[0].get("totalEquity"))
+def parse_accounts_equity(payload: dict) -> float | None:
+    """Total equity from the multi-collateral 'flex' account."""
+    flex = (payload.get("accounts", {}) or {}).get("flex", {}) or {}
+    return _f(flex.get("portfolioValue")) or _f(flex.get("balanceValue"))
 
 
-def parse_closed_pnl(result: dict) -> list[dict]:
-    """Realized trades from /v5/position/closed-pnl (newest-first -> oldest-first)."""
+def parse_openpositions(payload: dict) -> list[dict]:
     out = []
-    for r in result.get("list", []):
-        out.append({
-            "symbol": r.get("symbol"),
-            "side": r.get("side"),
-            "qty": _f(r.get("qty")),
-            "avg_entry": _f(r.get("avgEntryPrice")),
-            "avg_exit": _f(r.get("avgExitPrice")),
-            "closed_pnl": _f(r.get("closedPnl")) or 0.0,
-            "created_time": r.get("createdTime"),
-        })
-    out.reverse()
-    return out
-
-
-def parse_positions(result: dict) -> list[dict]:
-    out = []
-    for p in result.get("list", []):
+    for p in payload.get("openPositions", []) or []:
         size = _f(p.get("size")) or 0.0
         if size > 0:
             out.append({
                 "symbol": p.get("symbol"),
-                "side": p.get("side"),
+                "side": p.get("side"),       # "long" | "short"
                 "size": size,
-                "unrealised_pnl": _f(p.get("unrealisedPnl")),
+                "price": _f(p.get("price")),
             })
+    return out
+
+
+def parse_account_log_pnl(payload: dict) -> list[dict]:
+    """Realized-PnL entries from the account log -> oldest-first trade records."""
+    out = []
+    for e in payload.get("logs", []) or []:
+        pnl = _f(e.get("realized_pnl"))
+        if pnl is None or pnl == 0.0:
+            continue
+        out.append({
+            "symbol": e.get("contract") or e.get("asset"),
+            "side": e.get("info"),
+            "closed_pnl": pnl,
+            "created_time": e.get("date"),
+        })
+    out.sort(key=lambda r: r.get("created_time") or "")
     return out
 
 
@@ -110,64 +131,60 @@ def _f(v) -> float | None:
 
 
 # --- HTTP client ----------------------------------------------------------
-class BybitClient:
-    def __init__(self, testnet: bool, api_key: str = "", api_secret: str = "",
-                 recv_window: str = "5000", timeout: int = 10) -> None:
-        self.base = base_url(testnet)
+class KrakenClient:
+    def __init__(self, demo: bool, api_key: str = "", api_secret: str = "", timeout: int = 10) -> None:
+        self.base = base_url(demo)
         self.api_key = api_key
         self.api_secret = api_secret
-        self.recv_window = recv_window
         self.timeout = timeout
+        self._nonce = int(time.time() * 1000)
 
-    def _get(self, path: str, params: dict, signed: bool = False) -> dict:
-        query = urllib.parse.urlencode(params)
+    def _next_nonce(self) -> str:
+        self._nonce += 1
+        return str(self._nonce)
+
+    def _get(self, path: str, params: dict | None = None, signed: bool = False) -> dict:
+        query = urllib.parse.urlencode(params or {})
         url = f"{self.base}{path}?{query}" if query else f"{self.base}{path}"
-        headers = {"Content-Type": "application/json"}
+        headers = {"Accept": "application/json"}
         if signed:
             if not (self.api_key and self.api_secret):
                 raise RuntimeError("API key/secret required for signed endpoint")
-            ts = str(int(time.time() * 1000))
-            sig = sign_request(self.api_secret, self.api_key, ts, self.recv_window, query)
-            headers.update({
-                "X-BAPI-API-KEY": self.api_key,
-                "X-BAPI-TIMESTAMP": ts,
-                "X-BAPI-RECV-WINDOW": self.recv_window,
-                "X-BAPI-SIGN": sig,
-            })
+            nonce = self._next_nonce()
+            authent = sign_request(self.api_secret, _sign_endpoint(path), nonce, query)
+            headers.update({"APIKey": self.api_key, "Nonce": nonce, "Authent": authent})
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # noqa: S310
             body = json.loads(resp.read().decode())
-        if body.get("retCode", 0) != 0:
-            raise RuntimeError(f"Bybit error {body.get('retCode')}: {body.get('retMsg')}")
-        return body.get("result", {})
+        if isinstance(body, dict) and body.get("result") == "error":
+            raise RuntimeError(f"Kraken error: {body.get('error') or body.get('errors')}")
+        return body
 
     # --- market data (keyless) ---
-    def klines(self, category: str, symbol: str, interval: str, limit: int = 250) -> list[Kline]:
-        result = self._get("/v5/market/kline",
-                           {"category": category, "symbol": symbol, "interval": interval, "limit": limit})
-        return parse_klines(result)
+    def klines(self, symbol: str, resolution: str, tick_type: str = "trade") -> list[Kline]:
+        payload = self._get(f"/api/charts/v1/{tick_type}/{symbol}/{resolution}")
+        return parse_candles(payload)
 
-    def ticker(self, category: str, symbol: str) -> dict:
-        result = self._get("/v5/market/tickers", {"category": category, "symbol": symbol})
-        return parse_ticker(result)
+    def ticker(self, symbol: str) -> dict:
+        payload = self._get("/derivatives/api/v3/tickers")
+        return parse_ticker(payload, symbol)
 
     # --- account data (signed) ---
-    def equity(self, account_type: str = "UNIFIED") -> float | None:
-        result = self._get("/v5/account/wallet-balance", {"accountType": account_type}, signed=True)
-        return parse_wallet_equity(result)
+    def equity(self) -> float | None:
+        return parse_accounts_equity(self._get("/derivatives/api/v3/accounts", signed=True))
 
-    def positions(self, category: str, symbol: str) -> list[dict]:
-        result = self._get("/v5/position/list", {"category": category, "symbol": symbol}, signed=True)
-        return parse_positions(result)
+    def positions(self, symbol: str | None = None) -> list[dict]:
+        positions = parse_openpositions(self._get("/derivatives/api/v3/openpositions", signed=True))
+        return [p for p in positions if symbol is None or p["symbol"] == symbol]
 
-    def closed_pnl(self, category: str, symbol: str, limit: int = 100) -> list[dict]:
-        result = self._get("/v5/position/closed-pnl",
-                           {"category": category, "symbol": symbol, "limit": limit}, signed=True)
-        return parse_closed_pnl(result)
+    def realized_pnl(self, symbol: str, limit: int = 100) -> list[dict]:
+        payload = self._get("/api/history/v3/account-log", {"count": limit}, signed=True)
+        trades = parse_account_log_pnl(payload)
+        return [t for t in trades if t["symbol"] == symbol]
 
 
 def fetch_fear_greed(timeout: int = 10) -> tuple[int | None, str | None]:
-    """Free, keyless Fear & Greed Index. Fails soft (returns None,None)."""
+    """Free, keyless Fear & Greed Index. Fails soft (returns None, None)."""
     try:
         req = urllib.request.Request(FNG_URL, headers={"User-Agent": "tradingai"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
