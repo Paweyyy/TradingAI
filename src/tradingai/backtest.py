@@ -230,7 +230,7 @@ class Backtester:
 
 
 def load_klines_csv(path: str) -> list[Kline]:
-    """Load Bybit-style kline rows from CSV: start,open,high,low,close,volume[,turnover]."""
+    """Load OHLCV kline rows from CSV: time,open,high,low,close,volume[,...]."""
     import csv
 
     out: list[Kline] = []
@@ -239,5 +239,5 @@ def load_klines_csv(path: str) -> list[Kline]:
         for row in reader:
             if not row or row[0].lower() in ("start", "timestamp", "time"):
                 continue  # header
-            out.append(Kline.from_bybit(row))
+            out.append(Kline.from_ohlcv_row(row))
     return out

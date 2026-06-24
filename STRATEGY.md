@@ -2,7 +2,7 @@
 
 > **Companion to [`PLAN.md`](./PLAN.md) and [`SIGNALS.md`](./SIGNALS.md).** This is the concrete, rule-based strategy the bot executes first.
 > **Profile:** Perpetuals (USDT-margined), **low leverage 2–5x**, **higher-timeframe trend-following**, majors only.
-> **Capital:** Validate on **testnet** first, sized to a **~€1000 account** so risk math is realistic. Live only after go-live criteria are met.
+> **Capital:** Validate on **demo** first, sized to a **~€1000 account** so risk math is realistic. Live only after go-live criteria are met.
 > **Last updated:** 2026-06-20
 >
 > ⚠️ **Not financial advice.** Trading leveraged crypto can lose money fast. This documents a *risk-managed process*, not a promise of profit. Expect drawdowns and losing streaks.
@@ -12,8 +12,8 @@
 ## 0. Reality check on capital (read this first)
 
 - **€10 is too small to trade by the book.** Risking 1% = €0.10/trade, which is smaller than the round-trip fee + minimum order size. You can't place a sane stop. A €10 live account is a *symbolic learning stake*, not a growth vehicle.
-- **€1000 is where the rules below actually work.** 1% risk = €10/trade — enough room for a real ATR stop after fees. We use this size for testnet validation.
-- **The strategy is identical at any size.** What changes with more capital is only that position sizing and stops become *feasible*, and fees become a smaller % drag. So: prove it on testnet at €1000-equivalent → then decide real capital deliberately.
+- **€1000 is where the rules below actually work.** 1% risk = €10/trade — enough room for a real ATR stop after fees. We use this size for demo validation.
+- **The strategy is identical at any size.** What changes with more capital is only that position sizing and stops become *feasible*, and fees become a smaller % drag. So: prove it on the demo at €1000-equivalent → then decide real capital deliberately.
 - **"Trade my way up" honestly:** trend-following compounds slowly and unevenly. A *good* year might be tens of percent, with double-digit drawdowns along the way. There is no reliable fast path from tiny capital to wealth that doesn't rely on leverage gambling (which usually ends in liquidation). We optimize for **survival + positive expectancy**, and let compounding do its slow work.
 
 ---
@@ -28,7 +28,7 @@ Trade **with the dominant higher-timeframe trend** on major perpetuals. Use the 
 
 | Setting | v1 default | Notes |
 |---|---|---|
-| Instruments | **BTCUSDT** (perp) first; add **ETHUSDT** once stable | Majors = deepest liquidity, lowest spread, cleanest trends |
+| Instruments | **PF_XBTUSD** (perp) first; add **PF_ETHUSD** once stable | Majors = deepest liquidity, lowest spread, cleanest trends |
 | Margin | USDT-margined perpetuals, **Isolated margin** | Isolated caps loss to the position's margin |
 | Leverage cap | **3x** (range 2–5x allowed) | A hard ceiling, *not* a target; real exposure comes from risk sizing |
 | Trend timeframe | **4h** (optional Daily confluence) | Defines long-only vs short-only bias |
@@ -121,7 +121,7 @@ This keeps arithmetic deterministic and uses Claude for judgment on conflicting/
 ## 8. Validation before any real money (go-live gate)
 
 1. **Backtest** the rules on historical 1h/4h klines → check expectancy, win rate, avg R, max drawdown.
-2. **Forward-test on testnet** (€1000-equivalent) for **≥ 30–50 trades** or a fixed time window.
+2. **Forward-test on the demo** (€1000-equivalent) for **≥ 30–50 trades** or a fixed time window.
 3. **Go-live criteria (all must hold):** positive expectancy over the sample, max drawdown within tolerance (e.g. < 15%), no risk-limit breaches, behavior matches the logged rationale.
 4. Only then consider real capital — and **start at the size you validated**, not €10. If you insist on €10 live, treat it explicitly as paying tuition to learn execution & psychology, knowing the sizing math is degraded.
 
@@ -141,10 +141,10 @@ This keeps arithmetic deterministic and uses Claude for judgment on conflicting/
 2. **Entry style:** pullback-to-EMA (above) vs breakout-of-range — start with pullback?
 3. **Exact funding/sentiment thresholds** for the guards.
 4. **Scale-out vs single TP:** 50%@1R + trail (above) vs fixed 2R exit — which to test first?
-5. **Add ETH from day one** on testnet, or BTC-only until stable?
+5. **Add ETH from day one** on the demo, or BTC-only until stable?
 
 ---
 
 ### References
 - Strategy uses the signal stack defined in [`SIGNALS.md`](./SIGNALS.md) and the safety model in [`PLAN.md`](./PLAN.md).
-- Bybit perpetual contract specs (min order size, funding, leverage) — [Bybit MCP server](https://github.com/bybit-exchange/trading-mcp) exposes these via market/instrument tools.
+- Kraken Futures perpetual contract specs (min order size, funding, leverage) — exposed via the Kraken Futures `instruments` endpoint and the [Kraken CLI](https://github.com/krakenfx/kraken-cli) MCP tools.

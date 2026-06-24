@@ -1,8 +1,8 @@
-# RUNBOOK — Running TradingAI on Bybit Testnet
+# RUNBOOK — Running TradingAI on the Kraken Futures Demo
 
-Step-by-step to take the bot from zero to an autonomous testnet loop. Do these
-in order; each step builds confidence before the next. **v1 is testnet-only** —
-the bot refuses to run unless `BYBIT_TESTNET=true`.
+Step-by-step to take the bot from zero to an autonomous demo loop. Do these in
+order; each step builds confidence before the next. **v1 is demo-only** — the
+bot refuses to run unless `KRAKEN_DEMO=true`.
 
 > Companion docs: [README](./README.md) · [PLAN](./PLAN.md) · [STRATEGY](./STRATEGY.md) · [SIGNALS](./SIGNALS.md)
 
@@ -10,43 +10,47 @@ the bot refuses to run unless `BYBIT_TESTNET=true`.
 
 ## Prerequisites (one-time)
 
-1. **Python 3.11+** and **Node.js** — Node is required: the Bybit MCP server runs via `npx`.
-2. **Bybit testnet account** — sign up at <https://testnet.bybit.com> (separate from any real account).
-3. **Testnet API keys** — on testnet.bybit.com → **API Management** → create a key with
-   **Read + Trade** for **Unified Trading / Derivatives**. **Do not** enable withdrawals.
-4. **Anthropic API key** — from <https://console.anthropic.com> (for Claude's decisions).
-5. **Fund the testnet account** — use the testnet **faucet / "request demo funds"** to get play USDT.
+1. **Python 3.11+** (macOS ships 3.9 — install 3.11/3.12 via Homebrew or python.org).
+2. **Kraken CLI** — the official `krakenfx/kraken-cli` binary provides the MCP server
+   that places orders. Install it (Homebrew / cargo / GitHub release) so `kraken` is on your PATH.
+3. **Kraken Futures demo account** — sign up at <https://demo-futures.kraken.com> (separate
+   sandbox; it comes pre-funded with demo collateral).
+4. **Demo API keys** — on demo-futures.kraken.com → **Settings → API Keys** → create a key
+   with trading permission. **Do not** enable withdrawals.
+5. **Anthropic API key** — from <https://console.anthropic.com> (for Claude's decisions).
 
 ---
 
 ## Step 1 — Install
 
 ```bash
-git clone -b claude/trading-bot-bybit-plan-u8mnlp https://github.com/Paweyyy/TradingAI.git
+git clone https://github.com/Paweyyy/TradingAI.git
 cd TradingAI
-python3 -m venv .venv && . .venv/bin/activate
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install --upgrade pip setuptools wheel
 pip install -e '.[agent,dev]'      # 'agent' installs the Claude Agent SDK
 pytest -q                           # sanity check: all tests should pass
 ```
 
 ## Step 2 — Validate the data path (no keys, zero risk)
 
-Confirms market data + strategy rules work against live testnet data using only
-keyless public endpoints:
+Confirms market data + strategy rules work against live Kraken demo data using
+only keyless public endpoints:
 
 ```bash
-BYBIT_TESTNET=true tradingai snapshot
+KRAKEN_DEMO=true tradingai snapshot
 ```
-Expect a JSON snapshot for BTCUSDT (trend, RSI, ATR, funding, Fear & Greed) plus
-the rule evaluation. If this prints, your network + data pipeline is good.
+Expect a JSON snapshot for PF_XBTUSD (trend, RSI, ATR, funding, Fear & Greed)
+plus the rule evaluation. If this prints, your network + data pipeline is good.
 
 ## Step 3 — Add your keys
 
 ```bash
 cp .env.example .env
-# edit .env: set BYBIT_API_KEY, BYBIT_API_SECRET, ANTHROPIC_API_KEY; keep BYBIT_TESTNET=true
+# edit .env: set KRAKEN_API_KEY, KRAKEN_API_SECRET, ANTHROPIC_API_KEY; keep KRAKEN_DEMO=true
+# (optional) set KRAKEN_MCP_COMMAND / KRAKEN_MCP_ARGS if your Kraken CLI invocation differs
 set -a; source .env; set +a        # load into the shell
-tradingai check                    # should show testnet=True and API key set=True
+tradingai check                    # should show demo=True and API key set=True
 ```
 
 ## Step 4 — Dry run: watch it think *without trading* (recommended first)
@@ -54,7 +58,7 @@ tradingai check                    # should show testnet=True and API key set=Tr
 In `config/config.yaml` set:
 ```yaml
 mode:
-  testnet: true
+  demo: true
   dry_run: true        # evaluates + logs the sized order plan, places NO orders
 ```
 Then:
@@ -64,14 +68,14 @@ tradingai status       # review the logged decisions / planned orders
 ```
 Let it run and confirm the decisions and planned sizes look sane.
 
-## Step 5 — Live on testnet (real testnet orders)
+## Step 5 — Live on the demo (real demo orders)
 
 Set `dry_run: false` in `config/config.yaml`, then:
 ```bash
 tradingai run
 ```
 Each tick: snapshot → circuit breakers → strategy rules → **pre-sized order plan**
-→ Claude confirms/vetoes → orders placed via the Bybit MCP, every one clamped by
+→ Claude confirms/vetoes → orders placed via the Kraken MCP, every one clamped by
 the Risk Layer (Claude cannot change the size or trade off-plan).
 
 ## Step 6 — Evaluate
@@ -86,7 +90,7 @@ tradingai report       # win rate, PnL, drawdown + the go-live gate verdict
 
 | Knob | Default | Effect |
 |---|---|---|
-| `market.symbols` | `[BTCUSDT]` | Which pairs to trade |
+| `market.symbols` | `[PF_XBTUSD]` | Which Kraken perpetuals to trade (BTC is `XBT`) |
 | `runtime.cadence_minutes` | `60` | How often it evaluates. Lower (e.g. `5`) to gather data faster while testing — note it changes the strategy's character |
 | `risk.risk_per_trade_pct` | `1.0` | % of equity risked per trade |
 | `risk.leverage_cap` | `3` | Hard leverage ceiling (1–5) |
@@ -98,10 +102,10 @@ tradingai report       # win rate, PnL, drawdown + the go-live gate verdict
 
 ## Safety reminders
 
-- Keep `BYBIT_TESTNET=true`. The runner refuses to run live trading otherwise.
+- Keep `KRAKEN_DEMO=true`. The runner refuses to run live trading otherwise.
 - Use an API key **without withdrawal rights** and, ideally, an **IP allowlist**.
 - `.env` is gitignored — never commit keys.
-- This is **not financial advice**. Validate on testnet (the go-live gate wants
+- This is **not financial advice**. Validate on the demo (the go-live gate wants
   ≥30–50 trades with positive expectancy and drawdown < 15%) before discussing
   any real capital — and that is a separate, deliberate decision.
 
@@ -111,9 +115,10 @@ tradingai report       # win rate, PnL, drawdown + the go-live gate verdict
 
 | Symptom | Likely cause / fix |
 |---|---|
-| `REFUSING TO RUN: v1 is testnet-only` | Set `BYBIT_TESTNET=true` **and** `mode.testnet: true` |
-| `Could not reach Bybit ... 403` | Your network blocks Bybit egress; run from a machine with outbound access |
+| `REFUSING TO RUN: v1 is demo-only` | Set `KRAKEN_DEMO=true` **and** `mode.demo: true` |
+| `Could not fetch Kraken market data ... 403` | Your network blocks Kraken egress; run from a machine with outbound access |
+| `HTTP 503` from `demo-futures.kraken.com` for market data | Expected — the demo host doesn't serve the public charts API. The bot now reads market data from the production host (`futures.kraken.com`); pull the latest. Override with `KRAKEN_MARKET_BASE` if needed |
 | `claude-agent-sdk not installed` | `pip install -e '.[agent]'` |
-| `Scheduler needs BYBIT_API_KEY/SECRET` | Export your testnet keys (Step 3) |
-| `RISK BLOCK` / `PLAN MISMATCH` / `NO PLAN` in logs | The guard working as intended — a limit was breached, the direction was wrong, or there was no valid setup. Note: a wrongly-*sized* opening order is silently corrected to the planned size, not rejected |
-| `npx` errors launching the MCP server | Install Node.js; ensure `npx` is on PATH |
+| `Scheduler needs KRAKEN_API_KEY/SECRET` | Export your demo keys (Step 3) |
+| Orders rejected with `RISK BLOCK` / `PLAN MISMATCH` / `NO PLAN` in logs | The guard working as intended — limit breached, wrong direction, or no valid setup. A wrongly-*sized* opening order is corrected to the planned size, not rejected |
+| Kraken CLI MCP server fails to launch | Ensure the `kraken` binary is installed and on PATH; adjust `KRAKEN_MCP_COMMAND`/`KRAKEN_MCP_ARGS` |

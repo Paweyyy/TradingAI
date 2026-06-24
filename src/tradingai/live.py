@@ -1,9 +1,9 @@
 """Live tick orchestration (Phase 3).
 
-One tick: build the snapshot from live testnet data, build AccountState, run the
+One tick: build the snapshot from live demo data, build AccountState, run the
 circuit breakers, evaluate the deterministic rules, then hand the decision to
-Claude via the Bybit MCP. Every order Claude attempts is gated by the permission
-hook -> Risk Layer. Requires the Claude Agent SDK, Bybit testnet keys, network.
+Claude via the Kraken MCP. Every order Claude attempts is gated by the permission
+hook -> Risk Layer. Requires the Claude Agent SDK, Kraken demo keys, network.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from .agent import run_tick
 from .config import Config
 from .logging_setup import log_event, setup_logging
-from .market_data import BybitClient
+from .market_data import KrakenClient
 from .planning import build_order_plan
 from .risk import AccountState, RiskManager
 from .snapshot import build_account_state, build_snapshot
@@ -24,13 +24,13 @@ from .strategy import evaluate
 
 async def run_live_tick(cfg: Config) -> int:
     logger = setup_logging(cfg.runtime.log_level)
-    if not cfg.mode.testnet:
-        raise RuntimeError("run_live_tick refused: not testnet")
+    if not cfg.mode.demo:
+        raise RuntimeError("run_live_tick refused: not demo")
 
-    client = BybitClient(
-        testnet=True,
-        api_key=os.environ["BYBIT_API_KEY"],
-        api_secret=os.environ["BYBIT_API_SECRET"],
+    client = KrakenClient(
+        demo=True,
+        api_key=os.environ["KRAKEN_API_KEY"],
+        api_secret=os.environ["KRAKEN_API_SECRET"],
     )
     state = StateStore(cfg.runtime.state_dir)
     risk = RiskManager(cfg)

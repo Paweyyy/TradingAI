@@ -17,7 +17,7 @@ the repo for the full design.
 ## How to run commands
 
 Use the wrapper script (it locates the repo root, activates the venv if present,
-sets `BYBIT_TESTNET=true`, and forwards to the CLI):
+sets `KRAKEN_DEMO=true`, and forwards to the CLI):
 
 ```bash
 .claude/skills/trading-analysis/scripts/run.sh <command> [args]
@@ -30,8 +30,8 @@ If a command fails because dependencies aren't installed, run once:
 
 | User asks | Command | Notes |
 |---|---|---|
-| "What's the current BTC setup / should it be long?" | `run.sh snapshot` | Keyless. Prints live testnet snapshot (trend, RSI, ATR, funding, F&G) + the deterministic rule evaluation. Summarize it; explain *why* valid/invalid from the `reasons`. |
-| "Backtest the strategy on this data" | `run.sh backtest --data <path.csv> --equity 1000` | Needs a Bybit-format klines CSV. Report trades, return, win rate, avg R, max drawdown. |
+| "What's the current BTC setup / should it be long?" | `run.sh snapshot` | Keyless. Prints live demo snapshot (trend, RSI, ATR, funding, F&G) + the deterministic rule evaluation. Summarize it; explain *why* valid/invalid from the `reasons`. |
+| "Backtest the strategy on this data" | `run.sh backtest --data <path.csv> --equity 1000` | Needs an OHLCV klines CSV. Report trades, return, win rate, avg R, max drawdown. |
 | "How is the bot doing / is it ready for real money?" | `run.sh report` | Win rate, PnL, drawdown, and the go-live gate verdict. Needs keys for realized trades; otherwise summarizes the decision log. |
 | "Show recent decisions / status" | `run.sh status` | Equity peaks, day counters, last decisions. |
 | "Is my setup/config valid?" | `run.sh check` | Validates config + environment. |
@@ -42,7 +42,7 @@ If a command fails because dependencies aren't installed, run once:
 - **Read-only.** Do not run `tradingai tick` or `tradingai run` from this skill —
   those drive the live agent and place orders. If the user wants to start the
   bot, point them to `RUNBOOK.md` instead.
-- **Be honest about data availability.** `snapshot` needs network to Bybit;
+- **Be honest about data availability.** `snapshot` needs network to Kraken;
   `report` needs API keys for realized PnL. If unavailable, say so and fall back
   to the decision log rather than inventing numbers.
 - **Not financial advice.** When interpreting setups, describe what the rules say;

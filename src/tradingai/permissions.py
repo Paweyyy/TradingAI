@@ -15,18 +15,21 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from .mcp_bybit import is_denied, is_order_mutating
+from .mcp_kraken import is_denied, is_order_mutating
 from .planning import OrderPlan
 from .risk import AccountState, OrderIntent, RiskManager
 
 
 def _intent_from_tool_input(symbol_default: str, tool_input: dict) -> OrderIntent:
-    """Best-effort mapping of a Bybit order tool input to an OrderIntent."""
+    """Best-effort mapping of a Kraken order tool input to an OrderIntent.
+
+    Kraken uses ``size`` and ``limitPrice``; we also accept ``qty``/``price``.
+    """
     return OrderIntent(
         symbol=tool_input.get("symbol", symbol_default),
-        side=tool_input.get("side", "Buy"),
-        qty=float(tool_input.get("qty", 0) or 0),
-        price=float(tool_input.get("price", 0) or 0),
+        side=tool_input.get("side", "buy"),
+        qty=float(tool_input.get("size", tool_input.get("qty", 0)) or 0),
+        price=float(tool_input.get("limitPrice", tool_input.get("price", 0)) or 0),
         leverage=float(tool_input.get("leverage", 1) or 1),
         reduce_only=bool(tool_input.get("reduceOnly", False)),
     )
@@ -37,13 +40,14 @@ def _fmt_qty(qty: float) -> str:
 
 
 def _planned_input(tool_input: dict, plan: OrderPlan) -> dict:
-    """A copy of the tool input with size/side/leverage forced to the plan."""
+    """A copy of the tool input with size/side forced to the plan."""
     corrected = dict(tool_input)
     corrected["symbol"] = plan.symbol
     corrected["side"] = plan.side
-    corrected["qty"] = _fmt_qty(plan.qty)
-    if "leverage" in corrected:
-        corrected["leverage"] = str(plan.leverage)
+    # Set Kraken's field name; mirror to qty if the host used that key.
+    corrected["size"] = _fmt_qty(plan.qty)
+    if "qty" in corrected:
+        corrected["qty"] = _fmt_qty(plan.qty)
     return corrected
 
 
@@ -89,7 +93,7 @@ def make_permission_hook(
             return _deny("NO PLAN: no valid setup for an opening order this tick")
 
         # Never silently flip direction relative to the deterministic setup.
-        if intent.side != plan.side:
+        if intent.side.lower() != plan.side.lower():
             return _deny(f"PLAN MISMATCH: side {intent.side} != planned {plan.side}")
 
         # The authoritative (planned) order must pass risk.
