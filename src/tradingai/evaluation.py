@@ -1,6 +1,6 @@
 """Live performance evaluation (Phase 5).
 
-Turns realized Bybit trades (closed-PnL) into the same performance metrics the
+Turns realized Kraken trades (account-log PnL) into the same performance metrics the
 backtester reports, and summarizes bot activity from the decision log. This is
 the evidence for the go-live gate in STRATEGY.md.
 

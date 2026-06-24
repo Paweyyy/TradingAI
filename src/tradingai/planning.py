@@ -49,7 +49,7 @@ def build_order_plan(cfg: Config, risk: RiskManager, setup: TradeSetup,
         return None
 
     long = setup.direction == Direction.LONG
-    side = "Buy" if long else "Sell"
+    side = "buy" if long else "sell"   # Kraken side convention
     sd = setup.stop_distance
     stop = last_price - sd if long else last_price + sd
     tp_dist = cfg.execution.tp1_r_multiple * sd

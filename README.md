@@ -1,15 +1,15 @@
 # TradingAI
 
-Claude-driven automated crypto trading bot on **Bybit**, via the official Bybit **MCP** server and the **Claude Agent SDK**. **Testnet-first** — v1 refuses to trade real funds.
+Claude-driven automated crypto trading bot on **Kraken Futures**, via the official Kraken CLI **MCP** server and the **Claude Agent SDK**. **Demo-first** — v1 refuses to trade real funds.
 
-> Docs: **[RUNBOOK.md](./RUNBOOK.md)** (how to run it on testnet) · **[PLAN.md](./PLAN.md)** (architecture & safety) · **[SIGNALS.md](./SIGNALS.md)** (data & signals) · **[STRATEGY.md](./STRATEGY.md)** (the trading strategy).
+> Docs: **[RUNBOOK.md](./RUNBOOK.md)** (how to run it on the demo) · **[PLAN.md](./PLAN.md)** (architecture & safety) · **[SIGNALS.md](./SIGNALS.md)** (data & signals) · **[STRATEGY.md](./STRATEGY.md)** (the trading strategy).
 
 ## What it does
 
-Each tick, the bot builds a compact market snapshot for the configured symbol (price/trend/momentum/volatility/volume from Bybit, plus funding/OI and a free Fear & Greed regime read), evaluates a deterministic **higher-timeframe trend-following** strategy, and asks **Claude** to confirm or veto the setup with a written rationale. A deterministic **Risk Layer** has final authority over sizing, leverage, and a kill switch — Claude can never exceed the limits.
+Each tick, the bot builds a compact market snapshot for the configured symbol (price/trend/momentum/volatility/volume from Kraken Futures, plus funding/OI and a free Fear & Greed regime read), evaluates a deterministic **higher-timeframe trend-following** strategy, and asks **Claude** to confirm or veto the setup with a written rationale. A deterministic **Risk Layer** has final authority over sizing, leverage, and a kill switch — Claude can never exceed the limits.
 
 ```
-snapshot (code) -> strategy rules (code) -> Claude confirm/veto -> Risk Layer -> Bybit testnet
+snapshot (code) -> strategy rules (code) -> Claude confirm/veto -> Risk Layer -> Kraken demo
 ```
 
 ## Status
@@ -21,14 +21,14 @@ snapshot (code) -> strategy rules (code) -> Claude confirm/veto -> Risk Layer ->
 | Strategy rules (HTF trend-following) | ✅ done + tested |
 | Risk Layer (caps, sizing, kill switch) | ✅ done + tested |
 | Backtester (fees, ATR stop, scale-out, trail, metrics) | ✅ done + tested |
-| Bybit V5 data client (klines/ticker + signed account) | ✅ done + tested |
+| Kraken Futures data client (charts/ticker + signed account) | ✅ done + tested |
 | Live snapshot builder + `snapshot` / `tick` commands | ✅ done |
-| Bybit MCP wiring + permission hook | ✅ done |
+| Kraken MCP wiring + permission hook | ✅ done |
 | Live agent tick (Claude decides, orders via MCP) | ✅ wired (run locally w/ keys) |
 | Scheduler / autonomous loop (`run`) | ✅ done + tested |
 | Performance evaluation / `report` (shared metrics, go-live gate) | ✅ done + tested |
 
-See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **78 tests pass** for the deterministic core (no network/keys needed). Phases 0–5 complete; the bot is functionally ready for testnet validation.
+See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **81 tests pass** for the deterministic core (no network/keys needed). Phases 0–5 complete; the bot is functionally ready for demo validation.
 
 **Sizing is deterministic and force-injected:** the Risk Layer computes the exact order (side + qty + stop + take-profit) and hands Claude a *pre-sized plan*. Claude confirms or vetoes the trade but cannot change the size — for opening orders the permission hook **overwrites** the submitted side/qty/leverage with the plan (via `updatedInput`), so a slightly-off order is corrected rather than rejected (no lost fills). Opposite-direction orders, opening orders with no valid setup, and any submission that would itself breach risk are still denied outright.
 
@@ -41,39 +41,39 @@ python3 -m venv .venv && . .venv/bin/activate
 pip install -e '.[dev]'         # add ',agent' to install the Claude Agent SDK too
 pytest -q                        # run the test suite
 
-cp .env.example .env             # then fill in TESTNET keys; keep BYBIT_TESTNET=true
-BYBIT_TESTNET=true tradingai check     # validate config + environment
+cp .env.example .env             # then fill in DEMO keys; keep KRAKEN_DEMO=true
+KRAKEN_DEMO=true tradingai check       # validate config + environment
 tradingai status                       # print state report
 
 # Validate the live data path (keyless market data, no SDK needed):
-BYBIT_TESTNET=true tradingai snapshot  # fetch testnet data -> print snapshot + rule eval
+KRAKEN_DEMO=true tradingai snapshot    # fetch demo data -> print snapshot + rule eval
 
-# One full decision tick (needs '.[agent]' SDK + testnet keys + network):
-BYBIT_TESTNET=true tradingai tick      # Claude decides; orders via MCP, gated by Risk Layer
+# One full decision tick (needs '.[agent]' SDK + demo keys + network):
+KRAKEN_DEMO=true tradingai tick        # Claude decides; orders via MCP, gated by Risk Layer
 
 # Run unattended on the configured cadence (Ctrl-C to stop gracefully):
-BYBIT_TESTNET=true tradingai run       # autonomous loop: tick every cadence_minutes
+KRAKEN_DEMO=true tradingai run         # autonomous loop: tick every cadence_minutes
 
-# Evaluate realized testnet performance + the go-live gate:
-BYBIT_TESTNET=true tradingai report    # metrics from closed-PnL + activity from the log
+# Evaluate realized demo performance + the go-live gate:
+KRAKEN_DEMO=true tradingai report      # metrics from realized PnL + activity from the log
 
 # Evaluate the strategy on historical 1h klines before risking anything:
 tradingai backtest --data klines.csv --equity 1000
-# CSV format: start,open,high,low,close,volume[,turnover] (Bybit V5 kline order)
+# CSV format: time,open,high,low,close,volume[,...] (OHLCV order)
 ```
 
 ## Configuration
 
-Everything strategy- and risk-related lives in **[config/config.yaml](./config/config.yaml)** (validated by `src/tradingai/config.py`); the strategy prompt is **[config/strategies/default.md](./config/strategies/default.md)**. Secrets come only from `.env` / environment — never YAML. v1 defaults: BTCUSDT perp, 1% risk/trade, 3x leverage cap, 4h trend / 1h entry.
+Everything strategy- and risk-related lives in **[config/config.yaml](./config/config.yaml)** (validated by `src/tradingai/config.py`); the strategy prompt is **[config/strategies/default.md](./config/strategies/default.md)**. Secrets come only from `.env` / environment — never YAML. v1 defaults: PF_XBTUSD perp, 1% risk/trade, 3x leverage cap, 4h trend / 1h entry.
 
 ## Safety
 
-- **Testnet-only in v1:** the runner refuses to run live unless `BYBIT_TESTNET=true`.
+- **Demo-only in v1:** the runner refuses to run live unless `KRAKEN_DEMO=true`.
 - **Programmatic guards, not prompt trust:** size/leverage/allowlist/rate/loss limits are enforced in `risk.py`; withdrawal/transfer tools are denied in `permissions.py`.
 - **Kill switch + circuit breakers:** daily-loss and max-drawdown breakers halt new entries automatically.
-- Secrets are gitignored; use a Bybit API key with no withdrawal rights and an IP allowlist.
+- Secrets are gitignored; use a Kraken API key with no withdrawal rights and an IP allowlist.
 
-> ⚠️ Not financial advice. Leveraged crypto trading can lose money quickly. Validate on testnet before risking any real capital.
+> ⚠️ Not financial advice. Leveraged crypto trading can lose money quickly. Validate on the demo before risking any real capital.
 
 ## Analysis skill (interactive)
 

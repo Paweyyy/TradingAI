@@ -2,17 +2,17 @@
 # All values here are tunable; nothing strategy-related is hardcoded in source.
 
 mode:
-  testnet: true            # v1 hard requirement; runner asserts this
-  dry_run: false           # if true, never submit orders even on testnet
+  demo: true               # v1 hard requirement; runner asserts this (demo-futures.kraken.com)
+  dry_run: false           # if true, never submit orders even on demo
 
 market:
-  category: linear         # USDT-margined perpetuals
-  symbols:                 # v1: BTC-only. Add ETHUSDT once stable.
-    - BTCUSDT
-  trend_timeframe: "240"   # 4h (Bybit kline interval, minutes)
-  entry_timeframe: "60"    # 1h
+  category: flex           # Kraken multi-collateral perpetuals (PF_*)
+  symbols:                 # v1: BTC-only. Add PF_ETHUSD once stable.
+    - PF_XBTUSD            # note: BTC is XBT on Kraken
+  trend_timeframe: "4h"    # Kraken resolution string
+  entry_timeframe: "1h"
   klines_limit: 250        # enough history for EMA200
-  qty_decimals: 3          # order qty rounding (BTCUSDT perp step is 0.001)
+  qty_decimals: 4          # order qty rounding (PF_XBTUSD size is in BTC)
 
 strategy:
   name: htf_trend_following

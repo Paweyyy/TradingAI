@@ -14,7 +14,7 @@ from .config import StrategyConfig
 
 @dataclass
 class Kline:
-    """One OHLCV candle. Mirrors Bybit V5 kline fields we care about."""
+    """One OHLCV candle."""
 
     open: float
     high: float
@@ -23,8 +23,8 @@ class Kline:
     volume: float
 
     @classmethod
-    def from_bybit(cls, row: list) -> "Kline":
-        # Bybit V5 kline row: [start, open, high, low, close, volume, turnover]
+    def from_ohlcv_row(cls, row: list) -> "Kline":
+        # CSV/list row: [time, open, high, low, close, volume, ...]
         return cls(
             open=float(row[1]),
             high=float(row[2]),

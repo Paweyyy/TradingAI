@@ -1,4 +1,4 @@
-"""Assemble a full MarketSnapshot from live Bybit data + free regime feeds.
+"""Assemble a full MarketSnapshot from live Kraken Futures data + free regime feeds.
 
 This is the deterministic context-building step (PLAN.md §4 step 3): code fetches
 data and computes indicators; Claude later consumes the result.
@@ -8,20 +8,20 @@ from __future__ import annotations
 
 from .config import Config
 from .features import MarketSnapshot, build_timeframe_features
-from .market_data import BybitClient, fetch_fear_greed
+from .market_data import KrakenClient, fetch_fear_greed
 from .risk import AccountState
 from .state import StateStore
 
 
-def build_snapshot(cfg: Config, client: BybitClient, symbol: str) -> MarketSnapshot:
+def build_snapshot(cfg: Config, client: KrakenClient, symbol: str) -> MarketSnapshot:
     """Fetch klines/ticker/regime for one symbol and compute features."""
     m, s = cfg.market, cfg.strategy
-    trend_klines = client.klines(m.category, symbol, m.trend_timeframe, m.klines_limit)
-    entry_klines = client.klines(m.category, symbol, m.entry_timeframe, m.klines_limit)
+    trend_klines = client.klines(symbol, m.trend_timeframe)
+    entry_klines = client.klines(symbol, m.entry_timeframe)
     trend_feats = build_timeframe_features(trend_klines, s)
     entry_feats = build_timeframe_features(entry_klines, s)
 
-    ticker = client.ticker(m.category, symbol)
+    ticker = client.ticker(symbol)
     fng, fng_label = fetch_fear_greed()
 
     snap = MarketSnapshot(
@@ -38,11 +38,11 @@ def build_snapshot(cfg: Config, client: BybitClient, symbol: str) -> MarketSnaps
     return snap
 
 
-def build_account_state(cfg: Config, client: BybitClient, state: StateStore,
+def build_account_state(cfg: Config, client: KrakenClient, state: StateStore,
                         symbol: str, last_price: float | None) -> AccountState:
     """Build the Risk Layer's AccountState from wallet + positions + stored peaks."""
     equity = client.equity() or 0.0
-    positions = client.positions(cfg.market.category, symbol)
+    positions = client.positions(symbol)
     state.update_equity(equity)
     state.roll_day(equity)
     return AccountState(

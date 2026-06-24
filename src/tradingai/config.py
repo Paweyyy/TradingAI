@@ -14,17 +14,17 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class ModeConfig(BaseModel):
-    testnet: bool = True
+    demo: bool = True       # use Kraken Futures demo (demo-futures.kraken.com)
     dry_run: bool = False
 
 
 class MarketConfig(BaseModel):
-    category: str = "linear"
-    symbols: list[str] = Field(default_factory=lambda: ["BTCUSDT"])
-    trend_timeframe: str = "240"
-    entry_timeframe: str = "60"
+    category: str = "flex"  # Kraken multi-collateral perpetuals (PF_*)
+    symbols: list[str] = Field(default_factory=lambda: ["PF_XBTUSD"])
+    trend_timeframe: str = "4h"   # Kraken resolution string
+    entry_timeframe: str = "1h"
     klines_limit: int = 250
-    qty_decimals: int = 3  # order qty rounding (BTC perp step is 0.001)
+    qty_decimals: int = 4   # order qty rounding (PF_XBTUSD size is in BTC)
 
 
 class StrategyConfig(BaseModel):
