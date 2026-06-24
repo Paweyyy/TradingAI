@@ -1,0 +1,82 @@
+# TradingAI
+
+Claude-driven automated crypto trading bot on **Bybit**, via the official Bybit **MCP** server and the **Claude Agent SDK**. **Testnet-first** — v1 refuses to trade real funds.
+
+> Docs: **[RUNBOOK.md](./RUNBOOK.md)** (how to run it on testnet) · **[PLAN.md](./PLAN.md)** (architecture & safety) · **[SIGNALS.md](./SIGNALS.md)** (data & signals) · **[STRATEGY.md](./STRATEGY.md)** (the trading strategy).
+
+## What it does
+
+Each tick, the bot builds a compact market snapshot for the configured symbol (price/trend/momentum/volatility/volume from Bybit, plus funding/OI and a free Fear & Greed regime read), evaluates a deterministic **higher-timeframe trend-following** strategy, and asks **Claude** to confirm or veto the setup with a written rationale. A deterministic **Risk Layer** has final authority over sizing, leverage, and a kill switch — Claude can never exceed the limits.
+
+```
+snapshot (code) -> strategy rules (code) -> Claude confirm/veto -> Risk Layer -> Bybit testnet
+```
+
+## Status
+
+| Component | State |
+|---|---|
+| Project scaffold, config, logging, state | ✅ done |
+| Indicators (EMA/RSI/ATR/MACD/vol-z) | ✅ done + tested |
+| Strategy rules (HTF trend-following) | ✅ done + tested |
+| Risk Layer (caps, sizing, kill switch) | ✅ done + tested |
+| Backtester (fees, ATR stop, scale-out, trail, metrics) | ✅ done + tested |
+| Bybit V5 data client (klines/ticker + signed account) | ✅ done + tested |
+| Live snapshot builder + `snapshot` / `tick` commands | ✅ done |
+| Bybit MCP wiring + permission hook | ✅ done |
+| Live agent tick (Claude decides, orders via MCP) | ✅ wired (run locally w/ keys) |
+| Scheduler / autonomous loop (`run`) | ✅ done + tested |
+| Performance evaluation / `report` (shared metrics, go-live gate) | ✅ done + tested |
+
+See the roadmap in [PLAN.md](./PLAN.md#6-phased-roadmap). **78 tests pass** for the deterministic core (no network/keys needed). Phases 0–5 complete; the bot is functionally ready for testnet validation.
+
+**Sizing is deterministic and force-injected:** the Risk Layer computes the exact order (side + qty + stop + take-profit) and hands Claude a *pre-sized plan*. Claude confirms or vetoes the trade but cannot change the size — for opening orders the permission hook **overwrites** the submitted side/qty/leverage with the plan (via `updatedInput`), so a slightly-off order is corrected rather than rejected (no lost fills). Opposite-direction orders, opening orders with no valid setup, and any submission that would itself breach risk are still denied outright.
+
+> The **backtest measures the deterministic strategy only**. In live trading Claude adds a *veto* on top (it can pass on a valid setup but never invents one), so live entries are a conservative subset of backtest entries.
+
+## Quickstart
+
+```bash
+python3 -m venv .venv && . .venv/bin/activate
+pip install -e '.[dev]'         # add ',agent' to install the Claude Agent SDK too
+pytest -q                        # run the test suite
+
+cp .env.example .env             # then fill in TESTNET keys; keep BYBIT_TESTNET=true
+BYBIT_TESTNET=true tradingai check     # validate config + environment
+tradingai status                       # print state report
+
+# Validate the live data path (keyless market data, no SDK needed):
+BYBIT_TESTNET=true tradingai snapshot  # fetch testnet data -> print snapshot + rule eval
+
+# One full decision tick (needs '.[agent]' SDK + testnet keys + network):
+BYBIT_TESTNET=true tradingai tick      # Claude decides; orders via MCP, gated by Risk Layer
+
+# Run unattended on the configured cadence (Ctrl-C to stop gracefully):
+BYBIT_TESTNET=true tradingai run       # autonomous loop: tick every cadence_minutes
+
+# Evaluate realized testnet performance + the go-live gate:
+BYBIT_TESTNET=true tradingai report    # metrics from closed-PnL + activity from the log
+
+# Evaluate the strategy on historical 1h klines before risking anything:
+tradingai backtest --data klines.csv --equity 1000
+# CSV format: start,open,high,low,close,volume[,turnover] (Bybit V5 kline order)
+```
+
+## Configuration
+
+Everything strategy- and risk-related lives in **[config/config.yaml](./config/config.yaml)** (validated by `src/tradingai/config.py`); the strategy prompt is **[config/strategies/default.md](./config/strategies/default.md)**. Secrets come only from `.env` / environment — never YAML. v1 defaults: BTCUSDT perp, 1% risk/trade, 3x leverage cap, 4h trend / 1h entry.
+
+## Safety
+
+- **Testnet-only in v1:** the runner refuses to run live unless `BYBIT_TESTNET=true`.
+- **Programmatic guards, not prompt trust:** size/leverage/allowlist/rate/loss limits are enforced in `risk.py`; withdrawal/transfer tools are denied in `permissions.py`.
+- **Kill switch + circuit breakers:** daily-loss and max-drawdown breakers halt new entries automatically.
+- Secrets are gitignored; use a Bybit API key with no withdrawal rights and an IP allowlist.
+
+> ⚠️ Not financial advice. Leveraged crypto trading can lose money quickly. Validate on testnet before risking any real capital.
+
+## Analysis skill (interactive)
+
+A read-only **Claude skill** lives at `.claude/skills/trading-analysis/` — an on-demand front door to the same tested CLI. In any Claude Code / Claude session in this repo you can ask things like *"what's the current BTC setup?"*, *"summarize a backtest of this data"*, *"how's the bot doing / is it go-live ready?"*, or *"why did it hold?"* and Claude runs `snapshot` / `backtest` / `report` / `status` and narrates the result.
+
+It is **read-only by design** — it never starts the autonomous loop (`run`) or places orders; the engine and its Risk Layer stay in the scheduled service. To actually run the bot, follow [RUNBOOK.md](./RUNBOOK.md).
